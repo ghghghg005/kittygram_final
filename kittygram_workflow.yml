@@ -1,0 +1,63 @@
+name: Kittygram CI/CD
+
+on:
+  push:
+    branches: [ main ]
+
+env:
+  DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+  DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
+  TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+  TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: |
+          pip install ruff pytest pytest-django
+          pip install -r backend/requirements.txt
+      - name: Lint with ruff
+        run: ruff check backend/
+      - name: Run backend tests
+        run: pytest backend/
+
+  build_and_push:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Login to Docker Hub
+        run: echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
+      - name: Build and push backend
+        run: |
+          docker build -t ${{ secrets.DOCKER_USERNAME }}/kittygram_backend:latest ./backend
+          docker push ${{ secrets.DOCKER_USERNAME }}/kittygram_backend:latest
+      - name: Build and push frontend
+        run: |
+          docker build -t ${{ secrets.DOCKER_USERNAME }}/kittygram_frontend:latest ./frontend
+          docker push ${{ secrets.DOCKER_USERNAME }}/kittygram_frontend:latest
+      - name: Build and push gateway
+        run: |
+          docker build -t ${{ secrets.DOCKER_USERNAME }}/kittygram_gateway:latest ./nginx
+          docker push ${{ secrets.DOCKER_USERNAME }}/kittygram_gateway:latest
+
+  notify_telegram:
+    needs: build_and_push
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send message to Telegram
+        uses: appleboy/telegram-action@v0.1.1
+        with:
+          to: ${{ secrets.TELEGRAM_CHAT_ID }}
+          token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          message: |
+            ✅ Kittygram successfully deployed!
+            Repository: ${{ github.repository }}
+            Commit: ${{ github.sha }}
