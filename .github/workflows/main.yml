@@ -11,7 +11,7 @@ env:
   TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
 
 jobs:
-  test:
+    test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -26,12 +26,11 @@ jobs:
       - name: Install dependencies
         run: |
           pip install --upgrade pip
-          pip install ruff pytest pytest-django
           pip install -r backend/requirements.txt
       - name: Lint with ruff
         run: ruff check backend/
       - name: Run backend tests
-        run: pytest backend/
+        run: python backend/manage.py test cats
 
   build_and_push:
     needs: test
